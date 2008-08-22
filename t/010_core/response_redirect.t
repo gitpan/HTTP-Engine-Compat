@@ -6,7 +6,16 @@ use HTTP::Engine::Compat::Context;
 use HTTP::Engine::ResponseFinalizer;
 
 do {
-    my $c = HTTP::Engine::Compat::Context->new;
+    my $c = HTTP::Engine::Compat::Context->new(
+        req => HTTP::Engine::Request->new(
+            _connection => {
+                input_handle  => \*STDIN,
+                output_handle => \*STDIN,
+                env           => \%ENV,
+            },
+            request_builder => HTTP::Engine::RequestBuilder->new,
+        )
+    );
     $c->req->method('POST');
     $c->req->base(URI->new('http://d.hatena.ne.jp/'));
     $c->res->redirect('/TKSK/');
@@ -18,7 +27,16 @@ do {
 };
 
 do {
-    my $c = HTTP::Engine::Compat::Context->new;
+    my $c = HTTP::Engine::Compat::Context->new(
+        req => HTTP::Engine::Request->new(
+            _connection => {
+                input_handle  => \*STDIN,
+                output_handle => \*STDIN,
+                env           => \%ENV,
+            },
+            request_builder => HTTP::Engine::RequestBuilder->new,
+        )
+    );
     $c->req->method('GET');
     $c->req->base(URI->new('http://d.hatena.ne.jp/'));
     $c->res->body('OK');

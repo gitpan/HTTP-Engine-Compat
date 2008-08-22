@@ -1,6 +1,6 @@
 package HTTP::Engine::Compat;
 use Moose;
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 #extends 'HTTP::Engine';
 use HTTP::Engine;

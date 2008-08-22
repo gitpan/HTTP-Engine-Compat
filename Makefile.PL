@@ -2,8 +2,7 @@ use inc::Module::Install;
 name 'HTTP-Engine-Compat';
 all_from 'lib/HTTP/Engine/Compat.pm';
 
-# requires '';
-requires 'HTTP::Engine' => '0.0.13';
+requires 'HTTP::Engine' => '0.0.14';
 
 tests 't/*.t t/*/*.t t/*/*/*.t t/*/*/*/*.t';
 test_requires 'Test::More';

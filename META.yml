@@ -17,7 +17,7 @@ no_index:
     - inc
     - t
 requires:
-  HTTP::Engine: 0.0.13
+  HTTP::Engine: 0.0.14
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.01
+version: 0.02

@@ -1,6 +1,7 @@
 package HTTP::Engine::Compat::Context;
 use Moose;
 use HTTP::Engine::Request;
+use HTTP::Engine::RequestBuilder;
 use HTTP::Engine::Response;
 
 has req => (
@@ -9,7 +10,15 @@ has req => (
     required => 1,
     default  => sub {
         my $self = shift;
-        HTTP::Engine::Request->new( context => $self );
+        HTTP::Engine::Request->new(
+            context     => $self,
+            request_builder => HTTP::Engine::RequestBuilder->new(),
+            _connection => {
+                input_handle  => \*STDIN,
+                output_handle => \*STDOUT,
+                env           => \%ENV,
+            },
+        );
     },
     trigger => sub {
         my ( $self, $new_req ) = @_;

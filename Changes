@@ -1,4 +1,7 @@
 Revision history for Perl extension HTTP::Engine::Compat
 
+0.02    2008-08-22T18:39:49+09:00
+        - dependents HTTP::Engine 0.0.14
+
 0.01    Mon Aug 11 13:34:32 2008
         - original version
