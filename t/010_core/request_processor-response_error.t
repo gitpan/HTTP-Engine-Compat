@@ -37,7 +37,7 @@ sub run_engines {
             $c->res->body('OK');
             $code->();
         } HTTP::Request->new( GET => 'http://localhost/');
-        is $res->code, 200;
-        is $res->content, $content, $content;
+        is $res->status, 200;
+        is $res->body, $content, $content;
     }
 }

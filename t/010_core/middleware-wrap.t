@@ -12,4 +12,4 @@ my $response = run_engine {
 
 our $wrap;
 is $main::wrap, 'ok';
-is $response->content, 'OK!';
+is $response->body, 'OK!';

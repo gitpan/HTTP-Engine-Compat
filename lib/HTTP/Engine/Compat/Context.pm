@@ -1,7 +1,6 @@
 package HTTP::Engine::Compat::Context;
 use Moose;
 use HTTP::Engine::Request;
-use HTTP::Engine::RequestBuilder;
 use HTTP::Engine::Response;
 
 has req => (

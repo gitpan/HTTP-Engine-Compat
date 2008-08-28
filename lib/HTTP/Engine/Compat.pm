@@ -1,17 +1,19 @@
 package HTTP::Engine::Compat;
 use Moose;
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 #extends 'HTTP::Engine';
 use HTTP::Engine;
-use HTTP::Engine::RequestProcessor;
 use HTTP::Engine::Request;
+use HTTP::Engine::ResponseFinalizer;
 use HTTP::Engine::Compat::Context;
+use HTTP::Engine::Role::Interface;
+
+our $rh;
+my @wraps;
 
 sub import {
-    my($class, %args) = @_;
-
-    $class->_wrap( \&_extract_context );
+    my ( $class, %args ) = @_;
 
     $class->_modify(
         'HTTP::Engine::Request',
@@ -42,7 +44,7 @@ sub import {
                     my $self = shift;
 
                     if (@_) {
-                        $self->location( shift );
+                        $self->location(shift);
                         $self->status( shift || 302 );
                     }
 
@@ -53,25 +55,93 @@ sub import {
     );
 
     $class->_modify(
-        'HTTP::Engine::ResponseFinalizer',
+        'HTTP::Engine',
         sub {
             my $meta = shift;
             $meta->add_around_method_modifier(
-                finalize => sub {
-                    my $code = shift;
-                    my ($self, $req, $res) = @_;
-                    if (my $location = $res->location) {
-                        $res->header( Location => $req->absolute_url($location) );
-                        $res->body($res->status . ': Redirect') unless $res->body;
-                    }
-                    $code->(@_);
+                'new' => sub {
+                    my ($next, @args) = @_;
+                    my $instance = $next->(@args);
+
+                    $class->_setup_interface($instance->interface->meta);
+                    $instance;
                 },
-            )
-        }
+            );
+        },
     );
 
+    do {
+        my $meta =
+          Class::MOP::Class->initialize('HTTP::Engine::ResponseFinalizer')
+          or die "cannot get meta";
+        $meta->add_around_method_modifier(
+            finalize => sub {
+                my $code = shift;
+                my ( $self, $req, $res ) = @_;
+                if ( my $location = $res->location ) {
+                    $res->header( Location => $req->absolute_url($location) );
+                    $res->body( $res->status . ': Redirect' ) unless $res->body;
+                }
+                $code->(@_);
+            },
+        );
+    };
+
     return unless $args{middlewares} && ref $args{middlewares} eq 'ARRAY';
-    $class->load_middlewares(@{ $args{middlewares} });
+    $class->load_middlewares( @{ $args{middlewares} } );
+}
+
+my %initialized;
+sub _setup_interface {
+    my ($class, $inter) = @_;
+
+    return if $initialized{$inter->name}++;
+
+    $inter->make_mutable;
+
+    $inter->add_method(
+        'call_handler' => sub {
+            my $req = shift;
+            $rh->( $req );
+        }
+    );
+    $class->_wrap( $inter, \&_extract_context );
+    $class->_wrap( $inter, $_ ) for @wraps;
+
+    $inter->make_mutable;
+    $inter->add_method(
+        'handle_request' => sub {
+            my ( $self, %args ) = @_;
+
+            my $c = HTTP::Engine::Compat::Context->new(
+                req => HTTP::Engine::Request->new(
+                    request_builder => $self->request_builder,
+                    %args,
+                ),
+                res => HTTP::Engine::Response->new( status => 200 ),
+            );
+
+            eval {
+                local $rh = $self->request_handler;
+                my $res = $inter->get_method('call_handler')->($c);
+                if (Scalar::Util::blessed($res) && $res->isa('HTTP::Engine::Response')) {
+                    $c->res( $res );
+                }
+            };
+            if ( my $e = $@ ) {
+                print STDERR $e;
+                $c->res->status(500);
+                $c->res->body('internal server error');
+            }
+
+            HTTP::Engine::ResponseFinalizer->finalize( $c->req => $c->res );
+
+            $self->response_writer->finalize( $c->req => $c->res );
+            return $c->res;
+        },
+    );
+
+    $inter->make_immutable;
 }
 
 sub load_middlewares {
@@ -100,22 +170,17 @@ sub load_middleware {
     }
 
     if ($pkg->meta->has_method('wrap')) {
-        $class->_wrap( $pkg->meta->get_method('wrap')->body );
-        $class->_wrap( \&_extract_context );
+        push @wraps, $pkg->meta->get_method('wrap')->body;
     }
 }
 
 sub _wrap {
-    my ($class, $code ) = @_;
-    $class->_modify(
-        'HTTP::Engine::RequestProcessor',
-        sub {
-            my $meta = shift;
-            $meta->add_around_method_modifier(
-                call_handler => $code,
-            );
-        },
+    my ($class, $interface, $code ) = @_;
+    $interface->make_mutable;
+    $interface->add_around_method_modifier(
+        call_handler => $code,
     );
+    $interface->make_immutable;
 }
 
 sub _extract_context {
@@ -123,12 +188,6 @@ sub _extract_context {
 
     # process argument
     if (Scalar::Util::blessed($arg) ne 'HTTP::Engine::Compat::Context') {
-        $arg = HTTP::Engine::Compat::Context->new(
-            req => $arg,
-            res => HTTP::Engine::Response->new(
-                status => 200
-            ),
-        );
     }
 
     my $ret = $code->($arg);
@@ -147,9 +206,9 @@ sub _extract_context {
 sub _modify {
     my ($class, $target, $cb) = @_;
     my $meta = $target->meta;
-    $meta->make_mutable;
+    $meta->make_mutable if $meta->can('make_mutable');
     $cb->($meta);
-    $meta->make_immutable;
+    $meta->make_immutable if $meta->can('make_immutable');
 }
 
 no Moose;

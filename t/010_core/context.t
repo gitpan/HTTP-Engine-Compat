@@ -2,18 +2,20 @@ use strict;
 use warnings;
 use HTTP::Engine::Compat;
 use Scalar::Util qw/refaddr/;
-use Test::More tests => 3;
+use Test::More tests => 5;
 
-my $c = HTTP::Engine::Compat::Context->new(
-    req => HTTP::Engine::Request->new(
-        _connection => {
-            input_handle  => \*STDIN,
-            output_handle => \*STDIN,
-            env           => \%ENV,
+HTTP::Engine->new(
+    interface => {
+        module => 'Test',
+        args => { },
+        request_handler => sub {
+            my $c = shift;
+            isa_ok $c, 'HTTP::Engine::Compat::Context';
+            is $c->req->path, '/foo';
+            is refaddr( $c->req ), refaddr( $c->request ),  'alias';
+            is refaddr( $c->res ), refaddr( $c->response ), 'alias';
+            is refaddr( $c->req->context ), refaddr($c), 'trigger';
         },
-        request_builder => HTTP::Engine::RequestBuilder->new,
-    )
-);
-is refaddr( $c->req ), refaddr( $c->request ),  'alias';
-is refaddr( $c->res ), refaddr( $c->response ), 'alias';
-is refaddr( $c->req->context ), refaddr($c), 'trigger';
+    },
+)->run(HTTP::Request->new('GET', '/foo'));
+
